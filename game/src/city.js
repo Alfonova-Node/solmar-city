@@ -100,7 +100,6 @@ function districtAt(x, z) {
 
 export function createCity(scene, rng) {
   const colliders = [];
-  const disposables = [];
   const sun = new THREE.DirectionalLight(PALETTE.sunDay, 2.6);
   sun.position.set(140, 220, 60);
   sun.castShadow = true;
@@ -118,7 +117,6 @@ export function createCity(scene, rng) {
   scene.fog = new THREE.Fog(PALETTE.fogDay, 220, 760);
 
   const litMaterials = []; // materials whose emissive wakes up at dusk
-  const lampMeshes = [];
 
   // --- Ground: grass, then the beach, then the ocean -----------------------
   const ground = new THREE.Mesh(
@@ -289,7 +287,6 @@ export function createCity(scene, rng) {
     poles.setMatrixAt(i, m4);
     m4.compose(v.set(x, 6.1, z), q.identity(), s.set(1, 1, 1));
     lamps.setMatrixAt(i, m4);
-    lampMeshes.push([x, z]);
   });
   scene.add(poles);
   scene.add(lamps);
