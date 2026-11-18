@@ -2,6 +2,7 @@
 // in Old Town. Five jobs, then the city is yours. This file wires the
 // systems together: the loop, the camera, the screens, save/load, and the
 // deterministic screenshot staging.
+// Rebuilt file-by-file in the recorded session (recording 01a1eef8).
 import * as THREE from 'three';
 import { CITY, PLAYER, CAR, PLACES, SAVE_KEY, START_CASH } from './config.js';
 import { createInput, ACTION_PAUSE, ACTION_ENTER, ACTION_PUNCH, ACTION_FIRE } from './input.js';
