@@ -1,79 +1,90 @@
-// The screenshot scenes behind ?shot=start|play|end. Each one plays the real rules forward from a
-// fresh world for a fixed number of steps, steered by a simple autopilot (look ahead each way the
-// paddle could move, keep clear of blocks, chase the lowest coin when that is safe), so the frame
-// is what a short game really looks like and the same seed always gives the same frame.
-import { FIELD, PLAYER, STEP } from './config.js';
-import { EVENT_OVER, KIND_BLOCK } from './world.js';
-import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
-
-const START_SECONDS = 5;
-const PLAY_SECONDS = 26;
-const END_LIMIT_SECONDS = 600;
-/**
- * How far ahead, in seconds, the autopilot checks each way it could move: the play scene's pilot
- * looks well ahead and keeps all its lives; the end scene's looks only a moment ahead, so it is
- * caught out once the blocks speed up, as a hurried player is.
- */
-const HORIZON_PLAY = 0.7;
-const HORIZON_END = 0.25;
-const SAMPLE = 1 / 30;
-const DIRECTIONS = [0, -1, 1];
-/** Extra room, each side, it keeps between the paddle and a block. */
-const MARGIN = 10;
-
-/** Seconds until moving in `direction` (-1, 0, 1) runs the paddle into a block; Infinity when it never does. */
-function timeToHit(state, direction, horizon) {
-  const player = state.player;
-  for (let t = SAMPLE; t <= horizon; t += SAMPLE) {
-    const x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * t));
-    for (let index = 0; index < state.items.length; index += 1) {
-      const item = state.items[index];
-      if (!item.active || item.kind !== KIND_BLOCK) continue;
-      const y = item.y + item.speed * t;
-      if (y + item.height > player.y && y < player.y + player.height && item.x < x + player.width + MARGIN && item.x + item.width > x - MARGIN) return t;
+// Screenshot staging: ?shot=cover|downtown|marina|dusk&seed=N puts the game
+// into a fixed, lively state — the right place, the right light, the right
+// heat — so a headless screenshot shows the game at its best. The caller
+// flips window.__shotReady once the scene has settled. Every position here
+// is on a road, a sidewalk or open ground — never inside a building block —
+// and the camera always sits over a road or empty ground too.
+export function applyShot(shot, g) {
+  if (shot === 'cover') {
+    g.setTimeOfDay('dusk');
+    // A standoff, not a drive-by: Marco's yellow car stopped at the downtown
+    // intersection, two cruisers closing in from the front and the east, a
+    // third on its way — the chase camera looks forward, so the police have
+    // to be staged where the camera can see them.
+    const car = g.vehicles.addCar('player', -6, 42, Math.PI, 0xe8b820);
+    car.topSpeed = 34;
+    g.enterCar(car, 0);
+    g.police.addStars(3, 'Screenshot staging');
+    const c1 = g.vehicles.addCar('police', -6, 20, 0, undefined);
+    c1.topSpeed = 34; c1.axis = 'z'; c1.dir = 1; c1.lane = -6; c1.speed = 12;
+    g.vehicles.syncMesh(c1);
+    g.police.state.police.push(c1);
+    const c2 = g.vehicles.addCar('police', 20, 42, -Math.PI / 2, undefined);
+    c2.topSpeed = 34; c2.axis = 'x'; c2.dir = -1; c2.lane = 42; c2.speed = 12;
+    g.vehicles.syncMesh(c2);
+    g.police.state.police.push(c2);
+    // Mission 0 is already running from world setup — do not restart it,
+    // or the objective toast fires twice.
+    g.camera.dist = 9;
+    g.camera.setPitch(0.28);
+    g.camera.snapBehind();
+  } else if (shot === 'downtown') {
+    g.setTimeOfDay('day');
+    // Marco on the x=-6 road at the z=-54 intersection, facing the downtown
+    // skyline to the north. The camera sits on the same road behind him.
+    g.player.teleport(-6, -54, Math.PI);
+    // Traffic on the same road and peds on the sidewalks, staged so none of
+    // them reaches Marco before the screenshot is taken.
+    const t1 = g.vehicles.addCar('traffic', -6, -110, Math.PI, 0x2e6fd8);
+    t1.axis = 'z'; t1.dir = -1; t1.lane = -6; t1.speed = 9; g.vehicles.syncMesh(t1);
+    const t2 = g.vehicles.addCar('traffic', -6, -10, 0, 0xd8402e);
+    t2.axis = 'z'; t2.dir = 1; t2.lane = -6; t2.speed = 9; g.vehicles.syncMesh(t2);
+    const t3 = g.vehicles.addCar('traffic', -40, -54, -Math.PI / 2, 0x37b24d);
+    t3.axis = 'x'; t3.dir = -1; t3.lane = -54; t3.speed = 9; g.vehicles.syncMesh(t3);
+    for (const [x, z, dir] of [[-13.5, -70, -1], [1.5, -80, -1], [-13.5, -100, 1], [1.5, -65, 1]]) {
+      const ped = g.peds.spawnAt(x, z);
+      ped.axis = 'z'; ped.dir = dir; ped.lane = -6;
+      ped.heading = dir > 0 ? 0 : Math.PI;
+      ped.group.position.set(x, 0, z);
+      ped.group.rotation.y = ped.heading;
     }
+    g.camera.dist = 11;
+    g.camera.setYaw(0);
+    g.camera.setPitch(0.3);
+  } else if (shot === 'marina') {
+    g.setTimeOfDay('day');
+    // Marco on the x=186 road beside the orange Comet GT, facing it. The
+    // camera sits on the empty grass east of the road, looking southwest —
+    // the yaw is locked in shot mode, so it stays put.
+    g.player.teleport(186, 68, -2.68);
+    g.missions.startMission(1);
+    g.camera.dist = 11;
+    // South of Marco, looking north: Marco at the centre with his back to
+    // the camera, the orange Comet GT 8 m ahead of him on the same road.
+    // (The comet is north of Marco, so a camera north of him would put the
+    // car behind him and out of the frame.)
+    g.camera.setYaw(0);
+    g.camera.setPitch(0.35);
+  } else if (shot === 'dusk') {
+    g.setTimeOfDay('dusk');
+    // A chase down the beachfront road: the player eastbound in the south
+    // lane, the ocean on the right, two stars of police behind.
+    const car = g.vehicles.addCar('player', 60, 189, Math.PI / 2, 0xd8402e);
+    car.topSpeed = 26;
+    car.cruise = true;
+    g.enterCar(car, 22);
+    g.police.addStars(2, 'Screenshot staging');
+    g.missions.startMission(4);
+    g.camera.dist = 8;
+    g.camera.setPitch(0.25);
+    g.camera.snapBehind();
   }
-  return Infinity;
-}
-
-/** Of the safe ways to move, the one toward the lowest coin (or the centre); else the one that is hit last. */
-function autopilot(state, horizon) {
-  const player = state.player;
-  let coin = null;
-  for (let index = 0; index < state.items.length; index += 1) {
-    const item = state.items[index];
-    if (item.active && item.kind !== KIND_BLOCK && (coin === null || item.y > coin.y)) coin = item;
-  }
-  const target = coin === null ? FIELD.width / 2 : coin.x + coin.width / 2;
-  const centre = player.x + player.width / 2;
-  const wanted = target > centre + 8 ? 1 : target < centre - 8 ? -1 : 0;
-  let best = wanted;
-  let bestTime = timeToHit(state, wanted, horizon);
-  for (let index = 0; index < DIRECTIONS.length && bestTime !== Infinity; index += 1) {
-    const time = timeToHit(state, DIRECTIONS[index], horizon);
-    if (time > bestTime) {
-      bestTime = time;
-      best = DIRECTIONS[index];
-    }
-  }
-  return best;
-}
-
-/**
- * Set `world` to the named scene (start, play or end; any other name is start) and return the
- * screen to draw over it and the best score to show.
- */
-export function stageShot(name, world) {
-  world.reset();
-  if (name !== 'play' && name !== 'end') {
-    for (let index = 0; index < START_SECONDS / STEP; index += 1) world.step(STEP, 0, true);
-    return { screen: SCREEN_TITLE, best: 0 };
-  }
-  const limit = name === 'end' ? END_LIMIT_SECONDS : PLAY_SECONDS;
-  const horizon = name === 'end' ? HORIZON_END : HORIZON_PLAY;
-  for (let index = 0; index < limit / STEP; index += 1) {
-    if (world.step(STEP, autopilot(world.state, horizon), false) & EVENT_OVER) break;
-  }
-  const over = world.state.lives === 0;
-  return { screen: over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
+  // Warmup steps per shot (default 240 = 4 s). The cover is a standoff: at
+  // 240 steps the cruisers have already piled onto the player's car and hide
+  // it, so it is taken earlier, while they are still converging.
+  const warmupSteps = { cover: 100, downtown: 240, marina: 240, dusk: 240 }[shot] ?? 240;
+  g.hud.clearToasts();
+  g.hud.showOverlay(null);
+  g.screen = 'playing';
+  return warmupSteps;
 }

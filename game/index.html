@@ -1,19 +1,122 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>SOLMAR — a sunny coastal open world</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0f14;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: #f2f2f2; }
+  #game { position: fixed; inset: 0; }
+  #game canvas { display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+  .panel { background: rgba(8, 14, 20, 0.62); border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(3px); }
+  #top-left { position: absolute; top: 14px; left: 14px; display: flex; flex-direction: column; gap: 8px; }
+  #stars { font-size: 26px; letter-spacing: 3px; color: #888; text-shadow: 0 0 6px rgba(0,0,0,0.7); }
+  #stars.hot { color: #ffd23e; }
+  #cash { font-size: 24px; font-weight: 700; color: #7ee787; }
+  #health-wrap { width: 190px; height: 12px; background: rgba(0,0,0,0.55); border-radius: 6px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: #37b24d; transition: width 0.2s; }
+  #objective { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 15px; font-weight: 600; text-align: center; max-width: 46vw; }
+  #minimap { position: absolute; right: 14px; top: 14px; width: 200px; height: 200px;
+    border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: #12261a; }
+  #speed { position: absolute; right: 14px; bottom: 64px; font-size: 26px; font-weight: 700;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  #ammo { position: absolute; right: 14px; bottom: 100px; font-size: 15px; font-weight: 600;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  #hint { position: absolute; left: 14px; bottom: 14px; font-size: 12.5px; line-height: 1.6;
+    color: rgba(255,255,255,0.85); }
+  #toasts { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 6px; width: 70vw; }
+  .toast { background: rgba(8, 14, 20, 0.78); border: 1px solid rgba(255,210,62,0.5);
+    border-radius: 8px; padding: 7px 14px; font-size: 14.5px; font-weight: 600;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    flex-direction: column; text-align: center; background: rgba(5, 10, 16, 0.72);
+    z-index: 10; padding: 24px; }
+  .screen h1 { font-size: 64px; letter-spacing: 10px; color: #ffd23e;
+    text-shadow: 0 4px 24px rgba(255, 180, 40, 0.45); margin-bottom: 6px; }
+  .screen h2 { font-size: 34px; letter-spacing: 4px; margin-bottom: 10px; }
+  .screen p { font-size: 16px; line-height: 1.7; max-width: 560px; color: #dfe8ef; margin-bottom: 8px; }
+  .screen .sub { font-size: 13px; color: #9fb4c0; }
+  .screen button { pointer-events: auto; margin-top: 16px; padding: 12px 30px; font-size: 17px;
+    font-weight: 700; color: #101820; background: #ffd23e; border: none; border-radius: 10px;
+    cursor: pointer; box-shadow: 0 4px 18px rgba(255, 210, 62, 0.35); }
+  .screen button:hover { background: #ffdd55; }
+  .screen button.ghost { background: transparent; color: #f2f2f2; border: 1px solid rgba(255,255,255,0.5);
+    box-shadow: none; font-weight: 600; }
+  #screen-title { display: flex; background: linear-gradient(180deg, rgba(5,10,16,0.55), rgba(5,10,16,0.85)); }
+  #save-line { font-size: 14px; color: #7ee787; }
+  kbd { background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 4px; padding: 0 5px; font-family: inherit; font-size: 12px; }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
-<p id="status" role="status" aria-live="polite"></p>
+<div id="game"></div>
+
+<div id="hud">
+  <div id="top-left">
+    <div id="stars">☆☆☆☆☆</div>
+    <div id="cash" class="panel">$0</div>
+    <div id="health-wrap"><div id="health-fill"></div></div>
+  </div>
+  <div id="objective" class="panel">Welcome to Solmar</div>
+  <canvas id="minimap" width="200" height="200"></canvas>
+  <div id="speed"></div>
+  <div id="ammo"></div>
+  <div id="hint" class="panel">
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move &nbsp; <kbd>Shift</kbd> run &nbsp; <kbd>E</kbd> enter / exit car &amp; pick up<br>
+    <kbd>F</kbd> punch &nbsp; <kbd>G</kbd> pistol &nbsp; <kbd>Space</kbd> handbrake &nbsp; drag mouse: camera &nbsp; wheel: zoom &nbsp; <kbd>Esc</kbd> pause
+  </div>
+  <div id="toasts"></div>
+</div>
+
+<div id="screen-title" class="screen">
+  <h1>SOLMAR</h1>
+  <p>A sunny coastal city that never sleeps. You are <b>Marco Vale</b>, a driver for hire.
+  Rico, a fixer in Old Town, has five jobs for you — a fare, a stolen Comet GT, a
+  getaway, a package, and one timed sprint across the city. Finish them and Solmar is yours.</p>
+  <p class="sub">An original open world. Walk it, drive it, steal it. Mind the stars — the Solmar PD notices everything.</p>
+  <p id="save-line"></p>
+  <button id="btn-new">New Game</button>
+  <button id="btn-continue" class="ghost" style="display:none">Continue</button>
+  <p class="sub" style="margin-top:18px">WASD move &nbsp;·&nbsp; E enter car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; G pistol &nbsp;·&nbsp; Space handbrake &nbsp;·&nbsp; Esc pause</p>
+</div>
+
+<div id="screen-pause" class="screen">
+  <h2>PAUSED</h2>
+  <p>Solmar waits for no one — except right now.</p>
+  <button id="btn-resume">Resume</button>
+  <button id="btn-title" class="ghost">Save &amp; Quit to Title</button>
+</div>
+
+<div id="screen-busted" class="screen">
+  <h2>BUSTED</h2>
+  <p>The Solmar PD caught you. They took <b>$50</b> and dropped you at the station.
+  Rico is already pretending he doesn't know you.</p>
+  <button id="btn-busted">Back on the street</button>
+</div>
+
+<div id="screen-wasted" class="screen">
+  <h2>WASTED</h2>
+  <p>That hurt. The hospital patched you up for <b>$100</b> and sent you back out.
+  Try not to get shot next time.</p>
+  <button id="btn-wasted">Back on the street</button>
+</div>
+
+<div id="screen-complete" class="screen">
+  <h2>SOLMAR IS YOURS</h2>
+  <p>Five jobs, one sprint, zero loose ends. Rico says you're the best driver in Solmar —
+  and for once he's not lying. Keep driving: taxi fares pay the rent now.</p>
+  <button id="btn-complete">Keep exploring</button>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
